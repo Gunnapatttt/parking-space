@@ -45,10 +45,6 @@ server/hls/
 *.rar
 *.7z
 
-# MediaMTX binaries
-mediamtx/mediamtx.exe
-mediamtx/*.zip
-
 # FFmpeg binaries
 server/ffmpeg.zip
 ffmpeg.zip
