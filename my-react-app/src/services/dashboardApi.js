@@ -1,0 +1,428 @@
+import { apiRequest, withRetry } from './api';
+import { ENDPOINTS } from './constants';
+
+// Default values for fallback when API fails (clearly fake values)
+const DEFAULT_VALUES = {
+  SPACE_AVAILABILITY: 'OFFLINE',
+  AVERAGE_DURATION: 'OFFLINE',
+  PEAK_HOURS: 'OFFLINE'
+};
+
+/**
+ * Get current date in YYYY-MM-DD format
+ * @returns {string} - Current date
+ */
+const getCurrentDate = () => {
+  const today = new Date();
+  const day = String(today.getDate()).padStart(2, '0');
+  const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 because months are 0-indexed
+  const year = today.getFullYear();
+  return `${year}-${month}-${day}`; // Returns YYYY-MM-DD
+};
+
+/**
+ * Get date range for current year in YYYY-MM-DD format
+ * @returns {object} - Start and end dates for current year
+ */
+const getCurrentYearRange = () => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  return {
+    startDate: `${currentYear}-01-01`, // YYYY-MM-DD format
+    endDate: `${currentYear}-12-31`    // YYYY-MM-DD format
+  };
+};
+
+/**
+ * Fetch space availability data for today
+ * @returns {Promise<string>} - Space availability (e.g., "12/50")
+ */
+export const getSpaceAvailability = async () => {
+  try {
+    const currentDate = getCurrentDate();
+    const endpoint = `${ENDPOINTS.SPACE_AVAILABILITY}?targetCarCountDate=${currentDate}`;
+    const data = await withRetry(() => apiRequest(endpoint));
+    
+    // Debug: Log the actual response to understand the format
+    console.log('=== SPACE AVAILABILITY RAW DATA ===');
+    console.log('Type:', typeof data);
+    console.log('Raw Response:', data);
+    console.log('JSON String:', JSON.stringify(data, null, 2));
+    console.log('=====================================');
+    
+    // Handle the actual API response format
+    if (typeof data === 'object' && data !== null) {
+      // Backend returns: {"status":"success","car_count":0,"avg_s..."}
+      if (data.status === 'success' && data.car_count !== undefined) {
+        // Show occupied spaces / total spaces (not available/total)
+        const totalSpaces = 50;
+        const occupiedSpaces = data.car_count;
+        return `${occupiedSpaces}/${totalSpaces}`;
+      } else if (data.available !== undefined && data.total !== undefined) {
+        return `${data.available}/${data.total}`;
+      } else if (data.count !== undefined) {
+        return `${data.count}/50`;
+      } else if (data.carCount !== undefined) {
+        return `${data.carCount}/50`;
+      } else {
+        // Return the car_count if available
+        return data.car_count !== undefined ? `${data.car_count}/50` : JSON.stringify(data);
+      }
+    } else if (typeof data === 'string') {
+      // Try to parse if it's a JSON string
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.status === 'success' && parsed.car_count !== undefined) {
+          const totalSpaces = 50;
+          const occupiedSpaces = parsed.car_count;
+          return `${occupiedSpaces}/${totalSpaces}`;
+        }
+        return data;
+      } catch {
+        return data;
+      }
+    } else if (typeof data === 'number') {
+      return `${data}/50`;
+    }
+    
+    // If we can't parse it, return the raw data as string
+    return String(data);
+  } catch (error) {
+    console.error('Error fetching space availability:', error);
+    return DEFAULT_VALUES.SPACE_AVAILABILITY;
+  }
+};
+
+/**
+ * Fetch average parking duration for current year
+ * @returns {Promise<string>} - Average duration (e.g., "3 hr 42 min")
+ */
+export const getAverageDuration = async () => {
+  try {
+    const { startDate, endDate } = getCurrentYearRange();
+    const endpoint = `${ENDPOINTS.AVERAGE_DURATION}?startDate=${startDate}&endDate=${endDate}`;
+    const data = await withRetry(() => apiRequest(endpoint));
+    
+    // Debug: Log the actual response to understand the format
+    console.log('=== AVERAGE DURATION RAW DATA ===');
+    console.log('Type:', typeof data);
+    console.log('Raw Response:', data);
+    console.log('JSON String:', JSON.stringify(data, null, 2));
+    console.log('==================================');
+    
+    // Handle the actual API response format
+    if (typeof data === 'object' && data !== null) {
+      // Backend likely returns: {"status":"success","car_count":0,"avg_seconds":null}
+      if (data.status === 'success') {
+        if (data.avg_seconds !== null && data.avg_seconds !== undefined) {
+          // Convert seconds to hours and minutes
+          const totalMinutes = Math.round(data.avg_seconds / 60);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          return `${hours} hr ${minutes} min`;
+        } else if (data.avg_seconds === null) {
+          // No data available
+          return "No data";
+        }
+      } else if (data.avg_duration_hours !== undefined) {
+        const hours = Math.floor(data.avg_duration_hours);
+        const minutes = Math.round((data.avg_duration_hours - hours) * 60);
+        return `${hours} hr ${minutes} min`;
+      } else if (data.avg_s !== undefined) {
+        // If it's in seconds, convert to hours and minutes
+        const totalMinutes = Math.round(data.avg_s / 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return `${hours} hr ${minutes} min`;
+      } else if (data.hours !== undefined && data.minutes !== undefined) {
+        return `${data.hours} hr ${data.minutes} min`;
+      } else if (data.averageHours !== undefined) {
+        const hours = Math.floor(data.averageHours);
+        const minutes = Math.round((data.averageHours - hours) * 60);
+        return `${hours} hr ${minutes} min`;
+      } else if (data.duration !== undefined) {
+        return data.duration;
+      } else {
+        return JSON.stringify(data);
+      }
+    } else if (typeof data === 'string') {
+      // Try to parse if it's a JSON string
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.status === 'success') {
+          if (parsed.avg_seconds !== null && parsed.avg_seconds !== undefined) {
+            const totalMinutes = Math.round(parsed.avg_seconds / 60);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return `${hours} hr ${minutes} min`;
+          } else if (parsed.avg_seconds === null) {
+            return "No data";
+          }
+        } else if (parsed.avg_duration_hours !== undefined) {
+          const hours = Math.floor(parsed.avg_duration_hours);
+          const minutes = Math.round((parsed.avg_duration_hours - hours) * 60);
+          return `${hours} hr ${minutes} min`;
+        } else if (parsed.avg_s !== undefined) {
+          const totalMinutes = Math.round(parsed.avg_s / 60);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          return `${hours} hr ${minutes} min`;
+        }
+        return data;
+      } catch {
+        return data;
+      }
+    } else if (typeof data === 'number') {
+      // If API returns duration in hours as a decimal
+      const hours = Math.floor(data);
+      const minutes = Math.round((data - hours) * 60);
+      return `${hours} hr ${minutes} min`;
+    }
+    
+    // If we can't parse it, return the raw data as string
+    return String(data);
+  } catch (error) {
+    console.error('Error fetching average duration:', error);
+    return DEFAULT_VALUES.AVERAGE_DURATION;
+  }
+};
+
+/**
+ * Fetch peak hours data
+ * @returns {Promise<string>} - Peak hours (e.g., "9:32 AM - 11:14 AM")
+ */
+export const getPeakHours = async () => {
+  try {
+    const currentDate = getCurrentDate();
+    const endpoint = `${ENDPOINTS.PEAK_HOURS}?peakTimeTargetDate=${currentDate}`;
+    const data = await withRetry(() => apiRequest(endpoint));
+    
+    // Debug: Log the actual response to understand the format
+    console.log('=== PEAK HOURS RAW DATA ===');
+    console.log('Type:', typeof data);
+    console.log('Raw Response:', data);
+    console.log('JSON String:', JSON.stringify(data, null, 2));
+    console.log('===========================');
+    
+    // Handle the actual API response format
+    if (typeof data === 'object' && data !== null) {
+      // Backend returns: {"status":"success","peakTimeDate":"04-08-2025","hourly_counts":[...]}
+      if (data.status === 'success' && data.hourly_counts) {
+        // Find the hour with the highest count
+        let peakHour = 0;
+        let maxCount = 0;
+        
+        data.hourly_counts.forEach(item => {
+          if (item.count > maxCount) {
+            maxCount = item.count;
+            peakHour = item.hour;
+          }
+        });
+        
+        // If maxCount is 0, there's no parking activity
+        if (maxCount === 0) {
+          return "No data";
+        }
+        
+        // Format hour to readable time (e.g., 9 -> "9:00 AM")
+        const formatHour = (hour) => {
+          if (hour === 0) return "12:00 AM";
+          if (hour < 12) return `${hour}:00 AM`;
+          if (hour === 12) return "12:00 PM";
+          return `${hour - 12}:00 PM`;
+        };
+        
+        // Return peak hour range (assuming 1-hour window)
+        const startTime = formatHour(peakHour);
+        const endTime = formatHour(peakHour + 1);
+        return `${startTime} - ${endTime}`;
+      } else if (data.start && data.end) {
+        return `${data.start} - ${data.end}`;
+      } else {
+        return JSON.stringify(data);
+      }
+    } else if (typeof data === 'string') {
+      // Try to parse if it's a JSON string
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.status === 'success' && parsed.hourly_counts) {
+          // Same logic as above for parsed JSON
+          let peakHour = 0;
+          let maxCount = 0;
+          
+          parsed.hourly_counts.forEach(item => {
+            if (item.count > maxCount) {
+              maxCount = item.count;
+              peakHour = item.hour;
+            }
+          });
+          
+          // If maxCount is 0, there's no parking activity
+          if (maxCount === 0) {
+            return "No data";
+          }
+          
+          const formatHour = (hour) => {
+            if (hour === 0) return "12:00 AM";
+            if (hour < 12) return `${hour}:00 AM`;
+            if (hour === 12) return "12:00 PM";
+            return `${hour - 12}:00 PM`;
+          };
+          
+          const startTime = formatHour(peakHour);
+          const endTime = formatHour(peakHour + 1);
+          return `${startTime} - ${endTime}`;
+        }
+        return data;
+      } catch {
+        return data;
+      }
+    }
+    
+    // If we can't parse it, return the raw data as string
+    return String(data);
+  } catch (error) {
+    console.error('Error fetching peak hours:', error);
+    return DEFAULT_VALUES.PEAK_HOURS;
+  }
+};
+
+/**
+ * Fetch all dashboard summary data at once
+ * @returns {Promise<Array>} - Array of dashboard summary objects
+ */
+export const getDashboardSummary = async () => {
+  try {
+    // Fetch all data in parallel for better performance
+    const [spaceAvailability, averageDuration, peakHours] = await Promise.all([
+      getSpaceAvailability(),
+      getAverageDuration(),
+      getPeakHours()
+    ]);
+
+    return [
+      { label: 'Space Availability', value: spaceAvailability },
+      { label: 'Average Parking Duration', value: averageDuration },
+      { label: 'Peak Hours', value: peakHours }
+    ];
+  } catch (error) {
+    console.error('Error fetching dashboard summary:', error);
+    // Return default values if all requests fail
+    return [
+      { label: 'Space Availability', value: DEFAULT_VALUES.SPACE_AVAILABILITY },
+      { label: 'Average Parking Duration', value: DEFAULT_VALUES.AVERAGE_DURATION },
+      { label: 'Peak Hours', value: DEFAULT_VALUES.PEAK_HOURS }
+    ];
+  }
+};
+
+/**
+ * Convert ISO timestamp to display format
+ * @param {string} isoTimestamp - ISO format timestamp
+ * @returns {string} - Formatted timestamp (DD/M/YYYY, HH:MM:SS)
+ */
+const formatTimestamp = (isoTimestamp) => {
+  try {
+    const date = new Date(isoTimestamp);
+    const day = date.getDate();
+    const month = date.getMonth() + 1; // Months are 0-indexed
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  } catch (error) {
+    console.error('Error formatting timestamp:', error);
+    return isoTimestamp; // Return original if formatting fails
+  }
+};
+
+/**
+ * Transform API log entry to frontend format
+ * @param {Object} apiEntry - API log entry format
+ * @returns {Object} - Frontend format
+ */
+const transformLogEntry = (apiEntry) => {
+  return {
+    timestamp: formatTimestamp(apiEntry.car_Timestamp),
+    action: apiEntry.car_status === 'entry' ? 'Entry' : 
+            apiEntry.car_status === 'exit' ? 'Exit' : 
+            apiEntry.car_status, // Capitalize first letter
+    plate: apiEntry.license_plate_num,
+    image: apiEntry.car_img_path || apiEntry.lp_img_path || null
+  };
+};
+
+/**
+ * Fetch update log data
+ * @returns {Promise<Array>} - Array of log entries
+ */
+export const getUpdateLog = async () => {
+  try {
+    const data = await withRetry(() => apiRequest(ENDPOINTS.UPDATE_LOG));
+    
+    // Debug: Log the actual response to understand the format
+    console.log('=== UPDATE LOG RAW DATA ===');
+    console.log('Type:', typeof data);
+    console.log('Raw Response:', data);
+    console.log('JSON String:', JSON.stringify(data, null, 2));
+    console.log('===============================');
+    
+    // Handle different response formats
+    let rawLogs = [];
+    
+    if (Array.isArray(data)) {
+      rawLogs = data;
+    } else if (typeof data === 'object' && data !== null) {
+      // Check for common wrapped formats
+      if (data.status === 'success' && Array.isArray(data.logs)) {
+        rawLogs = data.logs;
+      } else if (Array.isArray(data.data)) {
+        rawLogs = data.data;
+      } else if (Array.isArray(data.result)) {
+        rawLogs = data.result;
+      } else if (Array.isArray(data.updateLog)) {
+        rawLogs = data.updateLog;
+      } else if (data.status === 'success' && data.logs === null) {
+        // No logs available
+        return [];
+      } else {
+        console.warn('Unexpected update log format:', data);
+        return [];
+      }
+    } else if (typeof data === 'string') {
+      // Try to parse if it's a JSON string
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          rawLogs = parsed;
+        } else if (parsed.status === 'success' && Array.isArray(parsed.logs)) {
+          rawLogs = parsed.logs;
+        } else {
+          console.warn('Unexpected string format:', parsed);
+          return [];
+        }
+      } catch {
+        console.warn('Failed to parse string data:', data);
+        return [];
+      }
+    } else {
+      console.warn('Unexpected data type:', typeof data, data);
+      return [];
+    }
+    
+    // Transform API format to frontend format
+    const transformedLogs = rawLogs.map(transformLogEntry);
+    
+    console.log('=== TRANSFORMED LOGS ===');
+    console.log('Transformed:', transformedLogs);
+    console.log('========================');
+    
+    return transformedLogs;
+  } catch (error) {
+    console.error('Error fetching update log:', error);
+    // Return empty array on error
+    return [];
+  }
+};
