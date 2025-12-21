@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/parking-space/static/css/main.2547aaf2.css",
-    "main.js": "/parking-space/static/js/main.bd59e05f.js",
+    "main.js": "/parking-space/static/js/main.c6630e42.js",
     "index.html": "/parking-space/index.html",
     "main.2547aaf2.css.map": "/parking-space/static/css/main.2547aaf2.css.map",
-    "main.bd59e05f.js.map": "/parking-space/static/js/main.bd59e05f.js.map"
+    "main.c6630e42.js.map": "/parking-space/static/js/main.c6630e42.js.map"
   },
   "entrypoints": [
     "static/css/main.2547aaf2.css",
-    "static/js/main.bd59e05f.js"
+    "static/js/main.c6630e42.js"
   ]
 }
