@@ -10,14 +10,14 @@ const REFRESH_INTERVALS = {
 
 // Default values for offline detection (clearly fake values that never match real data)
 const DEFAULT_VALUES = {
-  'Space Availability': 'OFFLINE',
+  'Car Parking': 'OFFLINE',
   'Average Parking Duration': 'OFFLINE',
   'Peak Hours': 'OFFLINE'
 };
 
 const DashboardSummary = () => {
   const [summaryData, setSummaryData] = useState([
-    { label: 'Space Availability', value: 'Loading...', isDefault: false },
+    { label: 'Car Parking', value: 'Loading...', isDefault: false },
     { label: 'Average Parking Duration', value: 'Loading...', isDefault: false },
     { label: 'Peak Hours', value: 'Loading...', isDefault: false },
   ]);
@@ -41,8 +41,8 @@ const DashboardSummary = () => {
       const isDefault = data === DEFAULT_VALUES[label];
       updateMetricData(label, data, isDefault);
       
-      // Update connection status based on space availability (most frequent)
-      if (label === 'Space Availability') {
+      // Update connection status based on car parking (most frequent)
+      if (label === 'Car Parking') {
         setConnectionStatus(isDefault ? 'failed' : 'connected');
         setError(isDefault ? 'API connection failed' : null);
       }
@@ -50,7 +50,7 @@ const DashboardSummary = () => {
       console.error(`Error fetching ${label}:`, err);
       updateMetricData(label, 'Offline', true);
       
-      if (label === 'Space Availability') {
+      if (label === 'Car Parking') {
         setConnectionStatus('failed');
         setError(`Failed to load ${label.toLowerCase()}`);
       }
@@ -59,7 +59,7 @@ const DashboardSummary = () => {
 
   // Individual fetch functions
   const fetchSpaceAvailability = useCallback(() => 
-    fetchMetric('Space Availability', getSpaceAvailability), [fetchMetric]);
+    fetchMetric('Car Parking', getSpaceAvailability), [fetchMetric]);
   
   const fetchAverageDuration = useCallback(() => 
     fetchMetric('Average Parking Duration', getAverageDuration), [fetchMetric]);
@@ -107,7 +107,7 @@ const DashboardSummary = () => {
 
   const getStatusText = (status) => {
     const texts = {
-      connected: 'API Connected',
+      connected: 'Connected',
       failed: 'API Disconnected',
       connecting: 'Connecting...'
     };

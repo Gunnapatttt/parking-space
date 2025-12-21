@@ -26,6 +26,7 @@ pids
 
 # HLS streaming files
 my-react-app/server/hls/
+server/hls/
 *.ts
 *.m3u8
 *.m3u8.tmp
@@ -36,6 +37,21 @@ my-react-app/server/hls/
 *.mov
 *.wmv
 *.mkv
+
+# Large binaries and archives
+*.exe
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# MediaMTX binaries
+mediamtx/mediamtx.exe
+mediamtx/*.zip
+
+# FFmpeg binaries
+server/ffmpeg.zip
+ffmpeg.zip
 
 # OS generated files
 .DS_Store

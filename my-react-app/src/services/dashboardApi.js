@@ -301,7 +301,7 @@ export const getDashboardSummary = async () => {
     ]);
 
     return [
-      { label: 'Space Availability', value: spaceAvailability },
+      { label: 'Car Parking', value: spaceAvailability },
       { label: 'Average Parking Duration', value: averageDuration },
       { label: 'Peak Hours', value: peakHours }
     ];
@@ -309,7 +309,7 @@ export const getDashboardSummary = async () => {
     console.error('Error fetching dashboard summary:', error);
     // Return default values if all requests fail
     return [
-      { label: 'Space Availability', value: DEFAULT_VALUES.SPACE_AVAILABILITY },
+      { label: 'Car Parking', value: DEFAULT_VALUES.SPACE_AVAILABILITY },
       { label: 'Average Parking Duration', value: DEFAULT_VALUES.AVERAGE_DURATION },
       { label: 'Peak Hours', value: DEFAULT_VALUES.PEAK_HOURS }
     ];

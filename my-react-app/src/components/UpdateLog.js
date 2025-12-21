@@ -55,11 +55,7 @@ const UpdateLog = () => {
             </span>
           )}
         </h3>
-        <select style={{ borderRadius: 6, padding: '4px 12px', fontSize: 15 }}>
-          <option>Timeframe: Live</option>
-          <option>Today</option>
-          <option>This Week</option>
-        </select>
+        <span style={{ fontSize: 15, color: '#666' }}>Timeframe: Live</span>
       </div>
       
       {error && (
@@ -103,9 +99,6 @@ const UpdateLog = () => {
           )}
         </tbody>
       </table>
-      <div style={{ textAlign: 'right' }}>
-        <a href="#" style={{ color: '#1976d2', fontWeight: 500, textDecoration: 'none' }}>View full log &rarr;</a>
-      </div>
     </div>
   );
 };
