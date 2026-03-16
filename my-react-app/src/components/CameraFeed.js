@@ -24,17 +24,22 @@ const CameraFeed = ({ label, timestamp }) => {
                 debug: false,
                 enableWorker: true,
                 lowLatencyMode: false,
-                backBufferLength: 30,
-                maxBufferLength: 15,
-                maxMaxBufferLength: 30,
-                liveSyncDurationCount: 2,
-                liveMaxLatencyDurationCount: 5,
+                // Keep buffer small - we want live, not smooth VOD
+                backBufferLength: 0,
+                maxBufferLength: 8,
+                maxMaxBufferLength: 16,
+                // Stay glued to live edge
+                liveSyncDurationCount: 1,
+                liveMaxLatencyDurationCount: 3,
                 liveDurationInfinity: true,
-                manifestLoadingTimeOut: 15000,
-                manifestLoadingMaxRetry: 20,
-                manifestLoadingRetryDelay: 2000,
-                segmentLoadingTimeOut: 15000,
-                segmentLoadingMaxRetry: 10
+                // Start at live edge immediately
+                startPosition: -1,
+                // Faster manifest polling
+                manifestLoadingTimeOut: 10000,
+                manifestLoadingMaxRetry: 30,
+                manifestLoadingRetryDelay: 1000,
+                segmentLoadingTimeOut: 10000,
+                segmentLoadingMaxRetry: 6
             });
 
             hlsRef.current = hls;

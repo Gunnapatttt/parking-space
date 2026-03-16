@@ -47,9 +47,10 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
     const output = [
         '-f', 'hls',
         '-hls_time', '2',
-        '-hls_list_size', '20',
-        '-hls_flags', 'append_list',
-        '-hls_allow_cache', '1',
+        '-hls_list_size', '6',
+        '-hls_flags', 'delete_segments+independent_segments',
+        '-hls_delete_threshold', '3',
+        '-hls_allow_cache', '0',
         '-hls_segment_filename', path.join(cameraDir, 'segment_%03d.ts'),
         path.join(cameraDir, 'playlist.m3u8')
     ];
