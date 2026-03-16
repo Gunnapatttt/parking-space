@@ -11,11 +11,14 @@ const port = process.env.PORT || 3001;
 
 // Enable CORS
 app.use(cors({
-    origin: [
-        'http://localhost:3000',
-        'http://localhost:3001', 
-        'https://gunnapatttt.github.io'
-    ],
+    origin: (origin, callback) => {
+        // Allow GitHub Pages, any localhost port (for dev), and no-origin requests
+        if (!origin || origin.startsWith('http://localhost:') || origin === 'https://gunnapatttt.github.io') {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 
