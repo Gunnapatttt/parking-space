@@ -19,9 +19,10 @@ app.use(cors({
 }));
 
 // RTSP URLs for Entrance and Exit
+// If not set, falls back to built-in FFmpeg test pattern (see buildFFmpegArgs)
 const rtspUrls = {
-    entrance: process.env.RTSP_ENTRANCE_URL || 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2',
-    exit: process.env.RTSP_EXIT_URL || 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2'
+    entrance: process.env.RTSP_ENTRANCE_URL || '',
+    exit: process.env.RTSP_EXIT_URL || ''
 };
 
 // Create hls directory if it doesn't exist
