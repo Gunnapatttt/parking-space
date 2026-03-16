@@ -46,9 +46,9 @@ app.use('/hls', express.static(hlsDir));
 function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
     const output = [
         '-f', 'hls',
-        '-hls_time', '4',
-        '-hls_list_size', '10',
-        '-hls_flags', 'append_list+delete_segments',
+        '-hls_time', '2',
+        '-hls_list_size', '20',
+        '-hls_flags', 'append_list',
         '-hls_allow_cache', '1',
         '-hls_segment_filename', path.join(cameraDir, 'segment_%03d.ts'),
         path.join(cameraDir, 'playlist.m3u8')
