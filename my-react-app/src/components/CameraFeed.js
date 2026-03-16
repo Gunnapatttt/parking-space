@@ -24,17 +24,13 @@ const CameraFeed = ({ label, timestamp }) => {
                 debug: false,
                 enableWorker: true,
                 lowLatencyMode: false,
-                // Keep buffer small - we want live, not smooth VOD
-                backBufferLength: 0,
-                maxBufferLength: 8,
-                maxMaxBufferLength: 16,
-                // Stay glued to live edge
-                liveSyncDurationCount: 1,
-                liveMaxLatencyDurationCount: 3,
+                backBufferLength: 10,
+                maxBufferLength: 20,
+                maxMaxBufferLength: 40,
+                liveSyncDurationCount: 2,
+                liveMaxLatencyDurationCount: 4,
                 liveDurationInfinity: true,
-                // Start at live edge immediately
                 startPosition: -1,
-                // Faster manifest polling
                 manifestLoadingTimeOut: 10000,
                 manifestLoadingMaxRetry: 30,
                 manifestLoadingRetryDelay: 1000,
