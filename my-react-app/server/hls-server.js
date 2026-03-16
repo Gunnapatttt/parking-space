@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Load .env for local development (not needed on Railway which uses real env vars)
+try { require('dotenv').config(); } catch (e) { /* dotenv not available, using system env vars */ }
 const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
