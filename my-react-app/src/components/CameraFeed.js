@@ -11,7 +11,8 @@ const CameraFeed = ({ label, timestamp }) => {
 
         // Convert label to lowercase for URL consistency
         const streamName = label.toLowerCase();
-        const streamUrl = `http://localhost:3001/hls/${streamName}/playlist.m3u8`;
+        const hlsBase = process.env.REACT_APP_HLS_SERVER_URL || 'https://parking-space-production.up.railway.app';
+        const streamUrl = `${hlsBase}/hls/${streamName}/playlist.m3u8`;
         
         console.log(`Initializing stream for ${label}:`, {
             streamName,
@@ -23,15 +24,16 @@ const CameraFeed = ({ label, timestamp }) => {
                 debug: false,
                 enableWorker: true,
                 lowLatencyMode: false,
-                backBufferLength: 90,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-                liveSyncDurationCount: 3,
-                liveMaxLatencyDurationCount: 10,
+                backBufferLength: 30,
+                maxBufferLength: 15,
+                maxMaxBufferLength: 30,
+                liveSyncDurationCount: 2,
+                liveMaxLatencyDurationCount: 5,
                 liveDurationInfinity: true,
-                manifestLoadingTimeOut: 10000,
-                manifestLoadingMaxRetry: 10,
-                segmentLoadingTimeOut: 10000,
+                manifestLoadingTimeOut: 15000,
+                manifestLoadingMaxRetry: 20,
+                manifestLoadingRetryDelay: 2000,
+                segmentLoadingTimeOut: 15000,
                 segmentLoadingMaxRetry: 10
             });
 

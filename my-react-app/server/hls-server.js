@@ -57,16 +57,18 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
     const isTestMode = !rtspUrl || rtspUrl.startsWith('OFFLINE') || rtspUrl === '';
 
     if (isTestMode) {
-        // Built-in FFmpeg test pattern - no external source needed
+        // Built-in FFmpeg test pattern - low resolution to save Railway CPU
         console.log(`[${cameraName}] No RTSP URL set, using built-in test pattern`);
         return [
             '-re',
             '-f', 'lavfi',
-            '-i', `testsrc2=size=1280x720:rate=25`,
+            '-i', 'testsrc2=size=640x360:rate=15',
             '-f', 'lavfi',
             '-i', 'sine=frequency=0:sample_rate=44100',
             '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
-            '-c:a', 'aac',
+            '-crf', '28', '-maxrate', '800k', '-bufsize', '1600k',
+            '-g', '30', '-sc_threshold', '0',
+            '-c:a', 'aac', '-b:a', '64k',
             ...output
         ];
     }
