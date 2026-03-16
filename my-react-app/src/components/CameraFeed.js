@@ -60,26 +60,29 @@ const CameraFeed = ({ label, timestamp }) => {
             });
 
             hls.on(Hls.Events.ERROR, (event, data) => {
-                console.log(`HLS error for ${label}:`, {
-                    type: data.type,
-                    details: data.details,
-                    fatal: data.fatal,
-                    url: streamUrl
-                });
+                // bufferStalledError is non-fatal - jump to live edge to recover
+                if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+                    if (video.duration && isFinite(video.duration)) {
+                        video.currentTime = video.duration - 1;
+                    }
+                    video.play().catch(() => {});
+                    return;
+                }
 
                 if (data.fatal) {
                     switch (data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR:
-                            console.error(`Fatal network error encountered for ${label}, trying to recover`);
-                            hls.startLoad();
+                            console.error(`Fatal network error for ${label}, recovering`);
+                            setTimeout(() => hls.startLoad(), 2000);
                             break;
                         case Hls.ErrorTypes.MEDIA_ERROR:
-                            console.error(`Fatal media error encountered for ${label}, trying to recover`);
+                            console.error(`Fatal media error for ${label}, recovering`);
                             hls.recoverMediaError();
                             break;
                         default:
-                            console.error(`Fatal error for ${label}, cannot recover`);
+                            console.error(`Fatal error for ${label}, restarting`);
                             hls.destroy();
+                            setTimeout(() => startFFmpeg(cameraName, rtspUrl), 3000);
                             break;
                     }
                 }

@@ -46,7 +46,7 @@ app.use('/hls', express.static(hlsDir));
 function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
     const output = [
         '-f', 'hls',
-        '-hls_time', '2',
+        '-hls_time', '4',
         '-hls_list_size', '6',
         '-hls_flags', 'delete_segments+independent_segments',
         '-hls_delete_threshold', '3',
