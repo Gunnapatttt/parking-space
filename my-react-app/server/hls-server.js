@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -36,20 +37,9 @@ if (!fs.existsSync(hlsDir)) {
 // Serve static files from the correct hls directory
 app.use('/hls', express.static(hlsDir));
 
-// Function to start FFmpeg for a specific camera
-function startFFmpeg(cameraName, rtspUrl) {
-    console.log(`Starting FFmpeg for ${cameraName} with URL: ${rtspUrl}`);
-    
-    const cameraDir = path.join(hlsDir, cameraName);
-    if (!fs.existsSync(cameraDir)) {
-        fs.mkdirSync(cameraDir);
-    }
-
-    const ffmpeg = spawn(ffmpegPath, [
-        '-rtsp_transport', 'tcp',
-        '-i', rtspUrl,
-        '-c:v', 'copy',
-        '-c:a', 'aac',
+// Build FFmpeg args depending on whether we have a real RTSP URL or use test pattern
+function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
+    const output = [
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '10',
@@ -57,7 +47,46 @@ function startFFmpeg(cameraName, rtspUrl) {
         '-hls_allow_cache', '1',
         '-hls_segment_filename', path.join(cameraDir, 'segment_%03d.ts'),
         path.join(cameraDir, 'playlist.m3u8')
-    ]);
+    ];
+
+    const isTestMode = !rtspUrl || rtspUrl.startsWith('OFFLINE') || rtspUrl === '';
+
+    if (isTestMode) {
+        // Built-in FFmpeg test pattern - no external source needed
+        console.log(`[${cameraName}] No RTSP URL set, using built-in test pattern`);
+        return [
+            '-re',
+            '-f', 'lavfi',
+            '-i', `testsrc2=size=1280x720:rate=25`,
+            '-f', 'lavfi',
+            '-i', 'sine=frequency=0:sample_rate=44100',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
+            '-c:a', 'aac',
+            ...output
+        ];
+    }
+
+    // Real RTSP source
+    return [
+        '-rtsp_transport', 'tcp',
+        '-i', rtspUrl,
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        ...output
+    ];
+}
+
+// Function to start FFmpeg for a specific camera
+function startFFmpeg(cameraName, rtspUrl) {
+    console.log(`Starting FFmpeg for ${cameraName} with URL: ${rtspUrl || 'TEST PATTERN'}`);
+    
+    const cameraDir = path.join(hlsDir, cameraName);
+    if (!fs.existsSync(cameraDir)) {
+        fs.mkdirSync(cameraDir);
+    }
+
+    const args = buildFFmpegArgs(cameraName, rtspUrl, cameraDir);
+    const ffmpeg = spawn(ffmpegPath, args);
 
     ffmpeg.stderr.on('data', (data) => {
         console.log(`FFmpeg ${cameraName} [${rtspUrl}]: ${data}`);
