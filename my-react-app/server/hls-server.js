@@ -5,26 +5,36 @@ const cors = require('cors');
 const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
 
 // Enable CORS
-app.use(cors());
-
-// Serve static files from the hls directory
-app.use('/hls', express.static(path.join(__dirname, 'hls')));
+app.use(cors({
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:3001', 
+        'https://gunnapatttt.github.io'
+    ],
+    credentials: true
+}));
 
 // RTSP URLs for Entrance and Exit
 const rtspUrls = {
-    entrance: 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2',
-    exit: 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2'
+    entrance: process.env.RTSP_ENTRANCE_URL || 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2',
+    exit: process.env.RTSP_EXIT_URL || 'rtsp://716f898c7b71.entrypoint.cloud.wowza.com:1935/app-8F9K44lJ/304679fe_stream2'
 };
 
 // Create hls directory if it doesn't exist
+// Use /tmp/hls on Railway (guaranteed writable), local ./hls otherwise
 const fs = require('fs');
-const hlsDir = path.join(__dirname, 'hls');
+const hlsDir = process.env.RAILWAY_ENVIRONMENT
+    ? '/tmp/hls'
+    : path.join(__dirname, 'hls');
 if (!fs.existsSync(hlsDir)) {
-    fs.mkdirSync(hlsDir);
+    fs.mkdirSync(hlsDir, { recursive: true });
 }
+
+// Serve static files from the correct hls directory
+app.use('/hls', express.static(hlsDir));
 
 // Function to start FFmpeg for a specific camera
 function startFFmpeg(cameraName, rtspUrl) {
@@ -69,13 +79,24 @@ Object.entries(rtspUrls).forEach(([cameraName, rtspUrl]) => {
     ffmpegProcesses[cameraName] = startFFmpeg(cameraName, rtspUrl);
 });
 
+// Add health check endpoint for Railway
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
 // Add a route to check stream status
 app.get('/stream-status', (req, res) => {
     const status = {};
+    const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+    const baseUrl = railwayDomain ? `https://${railwayDomain}` : `http://localhost:${port}`;
     Object.entries(rtspUrls).forEach(([cameraName, rtspUrl]) => {
         status[cameraName] = {
             rtspUrl: rtspUrl,
-            hlsUrl: `http://localhost:${port}/hls/${cameraName}/playlist.m3u8`,
+            hlsUrl: `${baseUrl}/hls/${cameraName}/playlist.m3u8`,
             processRunning: ffmpegProcesses[cameraName] ? true : false
         };
     });
@@ -83,8 +104,9 @@ app.get('/stream-status', (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
-    console.log(`HLS Server running at http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`HLS Server running at http://0.0.0.0:${port}`);
+    console.log('Environment:', process.env.NODE_ENV || 'development');
     console.log('Available streams:');
     Object.entries(rtspUrls).forEach(([cameraName, rtspUrl]) => {
         console.log(`- ${cameraName}:`);
