@@ -3,7 +3,7 @@ import { getSpaceAvailability, getAverageDuration, getPeakHours } from '../servi
 
 // Constants for refresh intervals
 const REFRESH_INTERVALS = {
-  SPACE_AVAILABILITY: 30000,    // 30 seconds
+  SPACE_AVAILABILITY: 10000,    // 10 seconds
   AVERAGE_DURATION: 600000,     // 10 minutes  
   PEAK_HOURS: 1800000          // 30 minutes
 };

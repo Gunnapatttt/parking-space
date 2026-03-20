@@ -224,13 +224,8 @@ export const getPeakHours = async () => {
           return "No data";
         }
         
-        // Format hour to readable time (e.g., 9 -> "9:00 AM")
-        const formatHour = (hour) => {
-          if (hour === 0) return "12:00 AM";
-          if (hour < 12) return `${hour}:00 AM`;
-          if (hour === 12) return "12:00 PM";
-          return `${hour - 12}:00 PM`;
-        };
+        // Format hour to readable time in 24hr format (e.g., 9 -> "09:00")
+        const formatHour = (hour) => `${String(hour % 24).padStart(2, '0')}:00`;
         
         // Return peak hour range (assuming 1-hour window)
         const startTime = formatHour(peakHour);
@@ -262,12 +257,7 @@ export const getPeakHours = async () => {
             return "No data";
           }
           
-          const formatHour = (hour) => {
-            if (hour === 0) return "12:00 AM";
-            if (hour < 12) return `${hour}:00 AM`;
-            if (hour === 12) return "12:00 PM";
-            return `${hour - 12}:00 PM`;
-          };
+          const formatHour = (hour) => `${String(hour % 24).padStart(2, '0')}:00`;
           
           const startTime = formatHour(peakHour);
           const endTime = formatHour(peakHour + 1);
@@ -373,6 +363,59 @@ export const getCarImages = async (licensePlate, rawTimestamp) => {
       ? `data:${data.license_plate.contentType};base64,${data.license_plate.base64}`
       : null,
   };
+};
+
+/**
+ * Fetch filtered records by date range and/or license plate
+ * @param {Object} filters - { start, end, plate } — all optional
+ *   start/end: "YYYY-MM-DD HH:mm:ss"
+ *   plate: string (partial or full match handled by backend)
+ * @returns {Promise<Array>} - Array of transformed log entries
+ */
+export const getFilteredRecords = async ({ start, end, plate } = {}) => {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end)   params.set('end', end);
+  if (plate) params.set('license_plate_num', plate);
+
+  const endpoint = `${ENDPOINTS.RECORDS_FILTER}?${params.toString()}`;
+  const data = await apiRequest(endpoint);
+
+  if (data.status !== 'success') {
+    throw new Error(data.reason || 'Filter request failed');
+  }
+
+  const records = Array.isArray(data.records) ? data.records : [];
+  return records.map(entry => ({
+    timestamp: formatTimestamp(entry.timestamp),
+    rawTimestamp: entry.timestamp,
+    action: entry.status === 'entry' ? 'Entry' : entry.status === 'exit' ? 'Exit' : entry.status,
+    plate: entry.license_plate_num,
+    image: null,
+  }));
+};
+
+/**
+ * Fetch all records for a specific license plate number
+ * @param {string} plate - License plate number
+ * @returns {Promise<Array>} - Array of transformed log entries
+ */
+export const getRecordsByPlate = async (plate) => {
+  const endpoint = `${ENDPOINTS.RECORDS_BY_PLATE}?license_plate_num=${encodeURIComponent(plate)}`;
+  const data = await apiRequest(endpoint);
+
+  if (data.status !== 'success') {
+    throw new Error(data.reason || 'Plate search failed');
+  }
+
+  const records = Array.isArray(data.records) ? data.records : [];
+  return records.map(entry => ({
+    timestamp: formatTimestamp(entry.timestamp),
+    rawTimestamp: entry.timestamp,
+    action: entry.status === 'entry' ? 'Entry' : entry.status === 'exit' ? 'Exit' : entry.status,
+    plate: entry.license_plate_num,
+    image: null,
+  }));
 };
 
 /**

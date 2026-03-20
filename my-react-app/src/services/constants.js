@@ -8,7 +8,9 @@ export const ENDPOINTS = {
   AVERAGE_DURATION: '/api/parking-avg', // Same endpoint, different params
   PEAK_HOURS: '/api/peakTime', // Updated to match backend
   UPDATE_LOG: '/api/updateLog',
-  IMAGES_BY_INFO: '/api/images/by-info'
+  IMAGES_BY_INFO: '/api/images/by-info',
+  RECORDS_FILTER: '/api/records/filter',
+  RECORDS_BY_PLATE: '/api/records/by-plate'
 };
 
 // Error Messages
