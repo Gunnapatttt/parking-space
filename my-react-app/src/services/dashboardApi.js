@@ -55,25 +55,25 @@ export const getSpaceAvailability = async () => {
       // Backend returns: {"status":"success","car_count":0,"avg_s..."}
       if (data.status === 'success' && data.car_count !== undefined) {
         // Show occupied spaces / total spaces (not available/total)
-        const totalSpaces = 50;
+        const totalSpaces = 45;
         const occupiedSpaces = data.car_count;
         return `${occupiedSpaces}/${totalSpaces}`;
       } else if (data.available !== undefined && data.total !== undefined) {
         return `${data.available}/${data.total}`;
       } else if (data.count !== undefined) {
-        return `${data.count}/50`;
+        return `${data.count}/45`;
       } else if (data.carCount !== undefined) {
-        return `${data.carCount}/50`;
+        return `${data.carCount}/45`;
       } else {
         // Return the car_count if available
-        return data.car_count !== undefined ? `${data.car_count}/50` : JSON.stringify(data);
+        return data.car_count !== undefined ? `${data.car_count}/45` : JSON.stringify(data);
       }
     } else if (typeof data === 'string') {
       // Try to parse if it's a JSON string
       try {
         const parsed = JSON.parse(data);
         if (parsed.status === 'success' && parsed.car_count !== undefined) {
-          const totalSpaces = 50;
+          const totalSpaces = 45;
           const occupiedSpaces = parsed.car_count;
           return `${occupiedSpaces}/${totalSpaces}`;
         }
@@ -82,7 +82,7 @@ export const getSpaceAvailability = async () => {
         return data;
       }
     } else if (typeof data === 'number') {
-      return `${data}/50`;
+      return `${data}/45`;
     }
     
     // If we can't parse it, return the raw data as string
@@ -346,11 +346,32 @@ const formatTimestamp = (isoTimestamp) => {
 const transformLogEntry = (apiEntry) => {
   return {
     timestamp: formatTimestamp(apiEntry.car_Timestamp),
+    rawTimestamp: apiEntry.car_Timestamp,
     action: apiEntry.car_status === 'entry' ? 'Entry' : 
             apiEntry.car_status === 'exit' ? 'Exit' : 
             apiEntry.car_status, // Capitalize first letter
     plate: apiEntry.license_plate_num,
     image: apiEntry.car_img_path || apiEntry.lp_img_path || null
+  };
+};
+
+/**
+ * Fetch car and license plate images for a specific log entry
+ * @param {string} licensePlate - The license plate number
+ * @param {string} rawTimestamp - The raw timestamp from the DB (e.g. "2026-03-20 20:39:15")
+ * @returns {Promise<{carSrc: string, lpSrc: string|null}>} - Base64 data URLs
+ */
+export const getCarImages = async (licensePlate, rawTimestamp) => {
+  const endpoint = `${ENDPOINTS.IMAGES_BY_INFO}?license_plate_num=${encodeURIComponent(licensePlate)}&timestamp=${encodeURIComponent(rawTimestamp)}`;
+  const data = await apiRequest(endpoint);
+  if (data.status !== 'success') {
+    throw new Error(data.reason || 'Failed to fetch images');
+  }
+  return {
+    carSrc: `data:${data.car.contentType};base64,${data.car.base64}`,
+    lpSrc: data.license_plate
+      ? `data:${data.license_plate.contentType};base64,${data.license_plate.base64}`
+      : null,
   };
 };
 

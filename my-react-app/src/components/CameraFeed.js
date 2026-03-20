@@ -1,9 +1,16 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
-const CameraFeed = ({ label, timestamp }) => {
+const STATUS_STYLE = {
+    live:       { dot: '#22c55e', text: '#166534', label: 'Live' },
+    connecting: { dot: '#f59e0b', text: '#92400e', label: 'Connecting...' },
+    offline:    { dot: '#ef4444', text: '#991b1b', label: 'Offline' },
+};
+
+const CameraFeed = ({ label }) => {
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
+    const [status, setStatus] = useState('connecting');
 
     useEffect(() => {
         const video = videoRef.current;
@@ -57,6 +64,7 @@ const CameraFeed = ({ label, timestamp }) => {
                         video.play().catch(e => console.error(`Second attempt failed for ${label}:`, e));
                     }, 1000);
                 });
+                setStatus('live');
             });
 
             hls.on(Hls.Events.ERROR, (event, data) => {
@@ -73,6 +81,7 @@ const CameraFeed = ({ label, timestamp }) => {
                     switch (data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR:
                             console.error(`Fatal network error for ${label}, recovering`);
+                            setStatus('connecting');
                             setTimeout(() => hls.startLoad(), 2000);
                             break;
                         case Hls.ErrorTypes.MEDIA_ERROR:
@@ -81,6 +90,7 @@ const CameraFeed = ({ label, timestamp }) => {
                             break;
                         default:
                             console.error(`Fatal error for ${label}, restarting`);
+                            setStatus('offline');
                             hls.destroy();
                             setTimeout(() => startFFmpeg(cameraName, rtspUrl), 3000);
                             break;
@@ -109,7 +119,15 @@ const CameraFeed = ({ label, timestamp }) => {
         <div className="camera-feed">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 500 }}>{label}</h3>
-                <span style={{ color: '#666', fontSize: 14 }}>{timestamp}</span>
+                <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                        width: 9, height: 9, borderRadius: '50%', display: 'inline-block',
+                        background: STATUS_STYLE[status].dot, flexShrink: 0
+                    }} />
+                    <span style={{ color: STATUS_STYLE[status].text }}>
+                        {STATUS_STYLE[status].label}
+                    </span>
+                </span>
             </div>
             <div className="video-container" style={{ 
                 backgroundColor: '#f8f9fa',

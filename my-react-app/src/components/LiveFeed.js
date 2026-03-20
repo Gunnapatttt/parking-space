@@ -7,11 +7,9 @@ const LiveFeed = () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <CameraFeed
                 label="Entrance"
-                timestamp="Live"
             />
             <CameraFeed
                 label="Exit"
-                timestamp="Live"
             />
         </div>
     </div>
