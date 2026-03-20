@@ -7,7 +7,7 @@ const ImageModal = ({ plate, rawTimestamp, onClose }) => {
   const [carSrc, setCarSrc] = useState(null);
   const [lpSrc, setLpSrc] = useState(null);
   const [error, setError] = useState(null);
-  const [fullscreen, setFullscreen] = useState(null); // src string when fullscreen is open
+  const [fullscreen, setFullscreen] = useState(null); // { src, isLp }
 
   useEffect(() => {
     let cancelled = false;
@@ -42,9 +42,13 @@ const ImageModal = ({ plate, rawTimestamp, onClose }) => {
           onClick={() => setFullscreen(null)}
         >
           <img
-            src={fullscreen}
+            src={fullscreen.src}
             alt="Fullscreen"
-            style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', borderRadius: 4 }}
+            style={{
+              width: fullscreen.isLp ? '50vw' : '95vw',
+              height: fullscreen.isLp ? '50vh' : '95vh',
+              objectFit: 'contain', borderRadius: 4
+            }}
             onClick={e => e.stopPropagation()}
           />
           <button
@@ -120,10 +124,10 @@ const ImageModal = ({ plate, rawTimestamp, onClose }) => {
                         border: '1px solid #e5e7eb', borderRadius: 8,
                         cursor: 'zoom-in', display: 'block'
                       }}
-                      onClick={() => setFullscreen(carSrc)}
+                      onClick={() => setFullscreen({ src: carSrc, isLp: false })}
                     />
                     <button
-                      onClick={() => setFullscreen(carSrc)}
+                      onClick={() => setFullscreen({ src: carSrc, isLp: false })}
                       title="Fullscreen"
                       style={{
                         position: 'absolute', bottom: 8, right: 8,
@@ -140,19 +144,20 @@ const ImageModal = ({ plate, rawTimestamp, onClose }) => {
               {lpSrc && (
                 <div>
                   <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>License Plate</p>
-                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <div style={{ position: 'relative', display: 'inline-block', width: 320 }}>
                     <img
                       src={lpSrc}
                       alt="License Plate"
                       style={{
-                        maxWidth: 320, width: '100%',
+                        maxWidth: 320, width: '100%', minWidth: 280,
                         border: '1px solid #e5e7eb', borderRadius: 8,
-                        cursor: 'zoom-in', display: 'block'
+                        cursor: 'zoom-in', display: 'block',
+                        imageRendering: 'auto'
                       }}
-                      onClick={() => setFullscreen(lpSrc)}
+                      onClick={() => setFullscreen({ src: lpSrc, isLp: true })}
                     />
                     <button
-                      onClick={() => setFullscreen(lpSrc)}
+                      onClick={() => setFullscreen({ src: lpSrc, isLp: true })}
                       title="Fullscreen"
                       style={{
                         position: 'absolute', bottom: 8, right: 8,
@@ -263,7 +268,7 @@ const UpdateLog = () => {
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Timestamp</th>
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Action</th>
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Plate Number</th>
-            <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Image Fetch</th>
+            <th style={{ textAlign: 'center', padding: 8, fontWeight: 600 }}>Image Fetch</th>
           </tr>
         </thead>
         <tbody>
@@ -279,7 +284,7 @@ const UpdateLog = () => {
                 <td style={{ padding: 8 }}>{row.timestamp}</td>
                 <td style={{ padding: 8 }}>{row.action}</td>
                 <td style={{ padding: 8 }}>{row.plate}</td>
-                <td style={{ padding: 8 }}>
+                <td style={{ padding: 8, textAlign: 'center' }}>
                   <button
                     onClick={() => setModal({ plate: row.plate, rawTimestamp: row.rawTimestamp })}
                     style={{
