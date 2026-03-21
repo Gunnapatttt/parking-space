@@ -271,12 +271,17 @@ const UpdateLog = () => {
     fetchLogData();
   };
 
-  // Initial load and setup refresh interval
+  // Initial load
   useEffect(() => {
     fetchLogData();
+  }, []);
+
+  // Auto-refresh every 10s — paused while a filter is active
+  useEffect(() => {
+    if (isFiltered) return;
     const interval = setInterval(fetchLogData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isFiltered]);
 
   // Loading state
   if (loading && logData.length === 0) {
