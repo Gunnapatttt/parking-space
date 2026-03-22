@@ -74,12 +74,14 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
         ];
     }
 
-    // Real RTSP source
+    // Real RTSP source — transcode to H.264 for HLS compatibility
     return [
         '-rtsp_transport', 'tcp',
         '-i', rtspUrl,
-        '-c:v', 'copy',
-        '-c:a', 'aac',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
+        '-crf', '28', '-maxrate', '800k', '-bufsize', '1600k',
+        '-g', '30', '-sc_threshold', '0',
+        '-c:a', 'aac', '-b:a', '64k',
         ...output
     ];
 }
