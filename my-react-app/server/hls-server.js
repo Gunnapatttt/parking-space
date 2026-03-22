@@ -77,17 +77,19 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
     // Real RTSP source — transcode to H.264 for HLS compatibility
     return [
         '-rtsp_transport', 'tcp',
+        '-stimeout', '10000000',
         '-i', rtspUrl,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
         '-crf', '28', '-maxrate', '800k', '-bufsize', '1600k',
         '-g', '30', '-sc_threshold', '0',
+        '-threads', '1',
         '-c:a', 'aac', '-b:a', '64k',
         ...output
     ];
 }
 
 // Function to start FFmpeg for a specific camera
-function startFFmpeg(cameraName, rtspUrl) {
+function startFFmpeg(cameraName, rtspUrl, retryDelay = 3000) {
     console.log(`Starting FFmpeg for ${cameraName} with URL: ${rtspUrl || 'TEST PATTERN'}`);
     
     const cameraDir = path.join(hlsDir, cameraName);
@@ -98,14 +100,20 @@ function startFFmpeg(cameraName, rtspUrl) {
     const args = buildFFmpegArgs(cameraName, rtspUrl, cameraDir);
     const ffmpeg = spawn(ffmpegPath, args);
 
+    ffmpeg.on('error', (err) => {
+        console.error(`FFmpeg ${cameraName} spawn error: ${err.message}`);
+    });
+
     ffmpeg.stderr.on('data', (data) => {
         console.log(`FFmpeg ${cameraName} [${rtspUrl}]: ${data}`);
     });
 
-    ffmpeg.on('close', (code) => {
-        console.log(`FFmpeg process for ${cameraName} [${rtspUrl}] exited with code ${code}`);
-        // Restart FFmpeg if it exits
-        setTimeout(() => startFFmpeg(cameraName, rtspUrl), 1000);
+    ffmpeg.on('close', (code, signal) => {
+        console.log(`FFmpeg process for ${cameraName} exited — code: ${code}, signal: ${signal}`);
+        // Exponential backoff: cap at 30s
+        const nextDelay = Math.min(retryDelay * 2, 30000);
+        console.log(`Restarting ${cameraName} in ${retryDelay}ms...`);
+        setTimeout(() => startFFmpeg(cameraName, rtspUrl, nextDelay), retryDelay);
     });
 
     return ffmpeg;
