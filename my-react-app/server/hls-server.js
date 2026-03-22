@@ -111,11 +111,14 @@ function startFFmpeg(cameraName, rtspUrl) {
     return ffmpeg;
 }
 
-// Start FFmpeg for each camera
+// Start FFmpeg for each camera — stagger by 5s to avoid OOM on Railway
 const ffmpegProcesses = {};
-Object.entries(rtspUrls).forEach(([cameraName, rtspUrl]) => {
-    console.log(`Initializing stream for ${cameraName} with URL: ${rtspUrl}`);
-    ffmpegProcesses[cameraName] = startFFmpeg(cameraName, rtspUrl);
+const cameraList = Object.entries(rtspUrls);
+cameraList.forEach(([cameraName, rtspUrl], index) => {
+    setTimeout(() => {
+        console.log(`Initializing stream for ${cameraName} with URL: ${rtspUrl}`);
+        ffmpegProcesses[cameraName] = startFFmpeg(cameraName, rtspUrl);
+    }, index * 5000);
 });
 
 // Add health check endpoint for Railway
