@@ -4,7 +4,9 @@ const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
 const cors = require('cors');
-const ffmpegPath = require('ffmpeg-static');
+// Use system ffmpeg (installed via Railway nixpacks) instead of ffmpeg-static
+// which has a known SIGSEGV crash on certain RTSP/TCP streams
+const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
 const app = express();
 const port = process.env.PORT || 3001;
