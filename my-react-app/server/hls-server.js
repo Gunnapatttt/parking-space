@@ -78,8 +78,6 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
 
     // Real RTSP source — transcode to H.264 for HLS compatibility
     return [
-        '-rtsp_transport', 'tcp',
-        '-timeout', '10000000',
         '-i', rtspUrl,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
         '-crf', '28', '-maxrate', '800k', '-bufsize', '1600k',
