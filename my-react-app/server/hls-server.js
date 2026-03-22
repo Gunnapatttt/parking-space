@@ -4,9 +4,7 @@ const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
 const cors = require('cors');
-// Use system ffmpeg (installed via Railway nixpacks) instead of ffmpeg-static
-// which has a known SIGSEGV crash on certain RTSP/TCP streams
-const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -76,20 +74,18 @@ function buildFFmpegArgs(cameraName, rtspUrl, cameraDir) {
         ];
     }
 
-    // Real RTSP source — transcode to H.264 for HLS compatibility
+    // Real RTSP source
     return [
+        '-rtsp_transport', 'tcp',
         '-i', rtspUrl,
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
-        '-crf', '28', '-maxrate', '800k', '-bufsize', '1600k',
-        '-g', '30', '-sc_threshold', '0',
-        '-threads', '1',
-        '-c:a', 'aac', '-b:a', '64k',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
         ...output
     ];
 }
 
 // Function to start FFmpeg for a specific camera
-function startFFmpeg(cameraName, rtspUrl, retryDelay = 3000) {
+function startFFmpeg(cameraName, rtspUrl) {
     console.log(`Starting FFmpeg for ${cameraName} with URL: ${rtspUrl || 'TEST PATTERN'}`);
     
     const cameraDir = path.join(hlsDir, cameraName);
@@ -100,33 +96,24 @@ function startFFmpeg(cameraName, rtspUrl, retryDelay = 3000) {
     const args = buildFFmpegArgs(cameraName, rtspUrl, cameraDir);
     const ffmpeg = spawn(ffmpegPath, args);
 
-    ffmpeg.on('error', (err) => {
-        console.error(`FFmpeg ${cameraName} spawn error: ${err.message}`);
-    });
-
     ffmpeg.stderr.on('data', (data) => {
         console.log(`FFmpeg ${cameraName} [${rtspUrl}]: ${data}`);
     });
 
-    ffmpeg.on('close', (code, signal) => {
-        console.log(`FFmpeg process for ${cameraName} exited — code: ${code}, signal: ${signal}`);
-        // Exponential backoff: cap at 30s
-        const nextDelay = Math.min(retryDelay * 2, 30000);
-        console.log(`Restarting ${cameraName} in ${retryDelay}ms...`);
-        setTimeout(() => startFFmpeg(cameraName, rtspUrl, nextDelay), retryDelay);
+    ffmpeg.on('close', (code) => {
+        console.log(`FFmpeg process for ${cameraName} [${rtspUrl}] exited with code ${code}`);
+        // Restart FFmpeg if it exits
+        setTimeout(() => startFFmpeg(cameraName, rtspUrl), 1000);
     });
 
     return ffmpeg;
 }
 
-// Start FFmpeg for each camera — stagger by 5s to avoid OOM on Railway
+// Start FFmpeg for each camera
 const ffmpegProcesses = {};
-const cameraList = Object.entries(rtspUrls);
-cameraList.forEach(([cameraName, rtspUrl], index) => {
-    setTimeout(() => {
-        console.log(`Initializing stream for ${cameraName} with URL: ${rtspUrl}`);
-        ffmpegProcesses[cameraName] = startFFmpeg(cameraName, rtspUrl);
-    }, index * 5000);
+Object.entries(rtspUrls).forEach(([cameraName, rtspUrl]) => {
+    console.log(`Initializing stream for ${cameraName} with URL: ${rtspUrl}`);
+    ffmpegProcesses[cameraName] = startFFmpeg(cameraName, rtspUrl);
 });
 
 // Add health check endpoint for Railway
