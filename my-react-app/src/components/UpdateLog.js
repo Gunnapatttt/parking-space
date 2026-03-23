@@ -1,5 +1,235 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getUpdateLog, getCarImages, getFilteredRecords, getRecordsByPlate } from '../services/dashboardApi';
+
+// Modal that shows all records with infinite scroll (loads 10 older entries as user scrolls)
+const AllLogsModal = ({ onClose, onViewImage }) => {
+  const [entries, setEntries] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef(null);
+  const loadingRef = useRef(false);
+  const cursorRef = useRef(null);
+  const hasMoreRef = useRef(true);
+  const PAGE = 20;
+
+  const pad = n => String(n).padStart(2, '0');
+  const toTs = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+  const loadMore = async (beforeTs) => {
+    if (loadingRef.current || !hasMoreRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    try {
+      const end = beforeTs ? new Date(beforeTs.replace(' ', 'T')) : new Date();
+      if (beforeTs) end.setSeconds(end.getSeconds() - 1);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 90);
+      const data = await getFilteredRecords({ start: toTs(start), end: toTs(end) });
+      const sorted = [...data].sort((a, b) => new Date(b.rawTimestamp) - new Date(a.rawTimestamp));
+      const page = sorted.slice(0, PAGE);
+      setEntries(prev => beforeTs ? [...prev, ...page] : page);
+      const newCursor = page.length > 0 ? page[page.length - 1].rawTimestamp : null;
+      const newHasMore = sorted.length > PAGE;
+      cursorRef.current = newCursor;
+      hasMoreRef.current = newHasMore;
+      setCursor(newCursor);
+      setHasMore(newHasMore);
+    } catch (e) {
+      // silent fail
+    } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => { loadMore(null); }, []);
+
+  // IntersectionObserver watches the sentinel div at the bottom of the list
+  // Fires whenever the sentinel becomes visible — triggers next page load
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore(cursorRef.current);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 820, height: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <h3 style={{ margin: 0, fontWeight: 600, fontSize: 18 }}>All Records</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#666', lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1, boxShadow: '0 1px 0 #e5e7eb' }}>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600 }}>Timestamp</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600 }}>Action</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600 }}>Plate Number</th>
+                <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 600 }}>Image</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((row, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px' }}>{row.timestamp}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <span style={{
+                      display: 'inline-block', padding: '2px 0', borderRadius: 12, fontSize: 12, fontWeight: 600, minWidth: 52, textAlign: 'center',
+                      background: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#dcfce7' : '#fee2e2',
+                      color: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#16a34a' : '#dc2626'
+                    }}>{row.action || '—'}</span>
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>{row.plate}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => onViewImage({ plate: row.plate, rawTimestamp: row.rawTimestamp })}
+                      style={{ padding: '4px 12px', fontSize: 13, cursor: 'pointer', border: '1px solid #d1d5db', borderRadius: 6, background: '#f9fafb', color: '#374151' }}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* Sentinel — observed by IntersectionObserver to trigger next load */}
+          <div ref={sentinelRef} style={{ padding: '16px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+            {loadingMore ? 'Loading more...' : !hasMore ? (entries.length === 0 ? 'No records found' : 'All records loaded') : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal that shows all filter results in an infinite-scroll list
+const FilterResultsModal = ({ results, onClose, onViewImage }) => {
+  const PAGE = 20;
+  const [visible, setVisible] = useState(results.slice(0, PAGE));
+  const [hasMore, setHasMore] = useState(results.length > PAGE);
+  const sentinelRef = useRef(null);
+  const observerRef = useRef(null);
+  const visibleRef = useRef(visible);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
+
+  useEffect(() => {
+    const loadMore = () => {
+      const current = visibleRef.current;
+      if (current.length >= results.length) { setHasMore(false); return; }
+      const next = results.slice(0, current.length + PAGE);
+      setVisible(next);
+      if (next.length >= results.length) setHasMore(false);
+    };
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    observerRef.current = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { threshold: 0.1 }
+    );
+    observerRef.current.observe(sentinel);
+    return () => { if (observerRef.current) observerRef.current.disconnect(); };
+  }, [results]);
+
+  return (
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}
+    >
+      <div style={{
+        background: '#fff', borderRadius: 12, width: '90%', maxWidth: 800,
+        height: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.18)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '14px 20px', borderBottom: '1px solid #e5e7eb',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: '#fff', flexShrink: 0
+        }}>
+          <span style={{ fontWeight: 600, fontSize: 16 }}>
+            Filter Results — {results.length} record{results.length !== 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', fontSize: 22, cursor: 'pointer',
+              color: '#6b7280', lineHeight: 1, padding: '0 4px'
+            }}
+          >×</button>
+        </div>
+        {/* Scrollable table */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px 0' }}>
+          {results.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>No results found</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 1 }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Timestamp</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Plate</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Action</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Image</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                    <td style={{ padding: '8px 14px', color: '#374151' }}>{row.timestamp || '—'}</td>
+                    <td style={{ padding: '8px 14px', fontWeight: 600, color: '#111' }}>{row.plate || '—'}</td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <span style={{
+                        display: 'inline-block', padding: '2px 0', borderRadius: 12, fontSize: 12, fontWeight: 600, minWidth: 52, textAlign: 'center',
+                        background: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#dcfce7' : '#fee2e2',
+                        color: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#16a34a' : '#dc2626'
+                      }}>
+                        {row.action || '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <button
+                        onClick={() => onViewImage({ plate: row.plate, rawTimestamp: row.rawTimestamp })}
+                        style={{ padding: '3px 10px', fontSize: 12, cursor: 'pointer', border: '1px solid #d1d5db', borderRadius: 5, background: '#f9fafb', color: '#374151' }}
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div ref={sentinelRef} style={{ padding: '16px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+            {hasMore ? 'Loading more...' : (results.length > 0 ? 'All results loaded' : '')}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Modal that fetches and displays car + license plate images for a log entry
 const ImageModal = ({ plate, rawTimestamp, onClose }) => {
@@ -69,7 +299,7 @@ const ImageModal = ({ plate, rawTimestamp, onClose }) => {
           position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.55)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 1400
         }}
         onClick={onClose}
       >
@@ -209,6 +439,9 @@ const UpdateLog = () => {
   const [filterMode, setFilterMode] = useState('datetime'); // 'datetime' | 'plate'
   const [isFiltered, setIsFiltered] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showAllModal, setShowAllModal] = useState(false);
+  const [showFilterResults, setShowFilterResults] = useState(false);
+  const [filterResults, setFilterResults] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -218,12 +451,23 @@ const UpdateLog = () => {
   // Combine date + hour + minute into "YYYY-MM-DD HH:mm:ss"
   const toApiDateTime = (date, h, m) => date ? `${date} ${h}:${m}:00` : '';
 
-  const fetchLogData = async () => {
+  const pad = n => String(n).padStart(2, '0');
+  const toTs = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+  // Fetch the most recent PAGE_SIZE entries (used on initial load + auto-refresh)
+  const fetchLatest = async () => {
     try {
       setError(null);
-      const data = await getUpdateLog();
-      setLogData(data);
-      setCurrentPage(1);
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      const data = await getFilteredRecords({
+        start: toTs(start),
+        end:   toTs(now),
+      });
+      const sorted = [...data].sort((a, b) => new Date(b.rawTimestamp) - new Date(a.rawTimestamp));
+      setLogData(sorted.slice(0, PAGE_SIZE));
       setStatus('live');
     } catch (err) {
       console.error('Error fetching update log:', err);
@@ -248,8 +492,9 @@ const UpdateLog = () => {
             start: toApiDateTime(filterStartDate, filterStartHour, filterStartMin),
             end:   toApiDateTime(filterEndDate,   filterEndHour,   filterEndMin),
           });
-      setLogData(data);
-      setCurrentPage(1);
+      const sorted = [...data].sort((a, b) => new Date(b.rawTimestamp) - new Date(a.rawTimestamp));
+      setFilterResults(sorted);
+      setShowFilterResults(true);
       setIsFiltered(true);
     } catch (err) {
       setError('Filter failed: ' + (err.message || 'Unknown error'));
@@ -268,18 +513,19 @@ const UpdateLog = () => {
     setFilterPlate('');
     setFilterMode('datetime');
     setIsFiltered(false);
-    fetchLogData();
+    setFilterResults([]);
+    setShowFilterResults(false);
   };
 
   // Initial load
   useEffect(() => {
-    fetchLogData();
+    fetchLatest();
   }, []);
 
   // Auto-refresh every 10s — paused while a filter is active
   useEffect(() => {
     if (isFiltered) return;
-    const interval = setInterval(fetchLogData, 10000);
+    const interval = setInterval(fetchLatest, 10000);
     return () => clearInterval(interval);
   }, [isFiltered]);
 
@@ -302,6 +548,19 @@ const UpdateLog = () => {
           plate={modal.plate}
           rawTimestamp={modal.rawTimestamp}
           onClose={() => setModal(null)}
+        />
+      )}
+      {showAllModal && (
+        <AllLogsModal
+          onClose={() => setShowAllModal(false)}
+          onViewImage={(m) => setModal(m)}
+        />
+      )}
+      {showFilterResults && (
+        <FilterResultsModal
+          results={filterResults}
+          onClose={() => { setShowFilterResults(false); clearFilter(); }}
+          onViewImage={(m) => setModal(m)}
         />
       )}
 
@@ -439,42 +698,20 @@ const UpdateLog = () => {
         <h3 style={{ margin: 0, fontWeight: 500, fontSize: 20 }}>
           Update Log
           {loading && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
-              {isFiltered ? 'Searching...' : 'Refreshing...'}
-            </span>
-          )}
-          {isFiltered && !loading && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#2563eb' }}>
-              Filtered — {logData.length} result{logData.length !== 1 ? 's' : ''}
-            </span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>Refreshing...</span>
           )}
         </h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {isFiltered && (
-            <button
-              onClick={clearFilter}
-              style={{
-                padding: '5px 12px', fontSize: 13, cursor: 'pointer',
-                border: '1px solid #d1d5db', borderRadius: 6,
-                background: '#fff', color: '#374151'
-              }}
-            >
-              Clear
-            </button>
-          )}
           <button
             onClick={() => setShowFilterModal(true)}
             style={{
               padding: '5px 14px', fontSize: 13, cursor: 'pointer',
-              border: `1px solid ${isFiltered ? '#2563eb' : '#d1d5db'}`,
-              borderRadius: 6,
-              background: isFiltered ? '#eff6ff' : '#f9fafb',
-              color: isFiltered ? '#2563eb' : '#374151',
-              fontWeight: isFiltered ? 600 : 400,
+              border: '1px solid #d1d5db', borderRadius: 6,
+              background: '#f9fafb', color: '#374151',
               display: 'flex', alignItems: 'center', gap: 5
             }}
           >
-            ⚙ Filter{isFiltered ? ' (on)' : ''}
+            ⚙ Filter
           </button>
         </div>
       </div>
@@ -498,7 +735,7 @@ const UpdateLog = () => {
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Timestamp</th>
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Action</th>
             <th style={{ textAlign: 'left', padding: 8, fontWeight: 600 }}>Plate Number</th>
-            <th style={{ textAlign: 'center', padding: 8, fontWeight: 600 }}>Image Fetch</th>
+            <th style={{ textAlign: 'center', padding: 8, fontWeight: 600 }}>Image</th>
           </tr>
         </thead>
         <tbody>
@@ -509,10 +746,16 @@ const UpdateLog = () => {
               </td>
             </tr>
           ) : (
-            logData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row, idx) => (
+            logData.map((row, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={{ padding: 8 }}>{row.timestamp}</td>
-                <td style={{ padding: 8 }}>{row.action}</td>
+                <td style={{ padding: 8 }}>
+                  <span style={{
+                    display: 'inline-block', padding: '2px 0', borderRadius: 12, fontSize: 12, fontWeight: 600, minWidth: 52, textAlign: 'center',
+                    background: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#dcfce7' : '#fee2e2',
+                    color: ['entrance','entry'].includes((row.action || '').toLowerCase()) ? '#16a34a' : '#dc2626'
+                  }}>{row.action || '—'}</span>
+                </td>
                 <td style={{ padding: 8 }}>{row.plate}</td>
                 <td style={{ padding: 8, textAlign: 'center' }}>
                   <button
@@ -536,39 +779,15 @@ const UpdateLog = () => {
         </tbody>
       </table>
 
-      {/* Pagination */}
-      {logData.length > PAGE_SIZE && (() => {
-        const totalPages = Math.ceil(logData.length / PAGE_SIZE);
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, marginBottom: 8 }}>
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              style={{
-                padding: '4px 12px', fontSize: 13, cursor: currentPage === 1 ? 'default' : 'pointer',
-                border: '1px solid #d1d5db', borderRadius: 6,
-                background: '#f9fafb', color: currentPage === 1 ? '#9ca3af' : '#374151'
-              }}
-            >
-              ‹ Prev
-            </button>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              style={{
-                padding: '4px 12px', fontSize: 13, cursor: currentPage === totalPages ? 'default' : 'pointer',
-                border: '1px solid #d1d5db', borderRadius: 6,
-                background: '#f9fafb', color: currentPage === totalPages ? '#9ca3af' : '#374151'
-              }}
-            >
-              Next ›
-            </button>
-          </div>
-        );
-      })()}
+      {/* See All button */}
+      <div style={{ textAlign: 'center', marginTop: 4, marginBottom: 4 }}>
+        <button
+          onClick={() => setShowAllModal(true)}
+          style={{ padding: '6px 20px', fontSize: 13, cursor: 'pointer', border: '1px solid #d1d5db', borderRadius: 6, background: '#f9fafb', color: '#374151' }}
+        >
+          See All
+        </button>
+      </div>
     </div>
   );
 };

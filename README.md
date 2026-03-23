@@ -11,7 +11,6 @@ A React application for monitoring live camera feeds with HLS streaming capabili
 ## Project Structure
 - `my-react-app/` - React frontend application
 - `my-react-app/server/` - Node.js HLS streaming server
-- `mediamtx/` - MediaMTX streaming server configuration
 
 ## Frontend Deployment (GitHub Pages)
 
@@ -61,13 +60,6 @@ npm start
 ```bash
 cd my-react-app/server
 node hls-server.js
-```
-
-### MediaMTX (Optional)
-For local testing with MediaMTX:
-```bash
-cd mediamtx
-./start-mediamtx.bat
 ```
 
 ## Dependencies

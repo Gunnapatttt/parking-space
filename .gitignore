@@ -70,6 +70,10 @@ ffmpeg
 ffprobe.exe
 ffprobe
 
+# MediaMTX binary
+mediamtx.exe
+mediamtx
+
 # Temporary files
 *.tmp
 *.temp

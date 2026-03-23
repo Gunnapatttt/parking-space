@@ -94,96 +94,39 @@ export const getSpaceAvailability = async () => {
 };
 
 /**
- * Fetch average parking duration for current year
- * @returns {Promise<string>} - Average duration (e.g., "3 hr 42 min")
+ * Format seconds into "X hr Y min" string
+ */
+const formatSeconds = (seconds) => {
+  if (seconds === null || seconds === undefined) return 'No data';
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours} hr ${minutes} min`;
+};
+
+/**
+ * Fetch average parking duration — returns today's and last week same day's average
+ * @returns {Promise<{today: string, lastWeek: string}>}
  */
 export const getAverageDuration = async () => {
+  const offline = { today: DEFAULT_VALUES.AVERAGE_DURATION, lastWeek: DEFAULT_VALUES.AVERAGE_DURATION };
   try {
     const { startDate, endDate } = getCurrentYearRange();
     const endpoint = `${ENDPOINTS.AVERAGE_DURATION}?startDate=${startDate}&endDate=${endDate}`;
     const data = await withRetry(() => apiRequest(endpoint));
-    
-    // Debug: Log the actual response to understand the format
-    console.log('=== AVERAGE DURATION RAW DATA ===');
-    console.log('Type:', typeof data);
-    console.log('Raw Response:', data);
-    console.log('JSON String:', JSON.stringify(data, null, 2));
-    console.log('==================================');
-    
-    // Handle the actual API response format
-    if (typeof data === 'object' && data !== null) {
-      // Backend likely returns: {"status":"success","car_count":0,"avg_seconds":null}
-      if (data.status === 'success') {
-        if (data.avg_seconds !== null && data.avg_seconds !== undefined) {
-          // Convert seconds to hours and minutes
-          const totalMinutes = Math.round(data.avg_seconds / 60);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          return `${hours} hr ${minutes} min`;
-        } else if (data.avg_seconds === null) {
-          // No data available
-          return "No data";
-        }
-      } else if (data.avg_duration_hours !== undefined) {
-        const hours = Math.floor(data.avg_duration_hours);
-        const minutes = Math.round((data.avg_duration_hours - hours) * 60);
-        return `${hours} hr ${minutes} min`;
-      } else if (data.avg_s !== undefined) {
-        // If it's in seconds, convert to hours and minutes
-        const totalMinutes = Math.round(data.avg_s / 60);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        return `${hours} hr ${minutes} min`;
-      } else if (data.hours !== undefined && data.minutes !== undefined) {
-        return `${data.hours} hr ${data.minutes} min`;
-      } else if (data.averageHours !== undefined) {
-        const hours = Math.floor(data.averageHours);
-        const minutes = Math.round((data.averageHours - hours) * 60);
-        return `${hours} hr ${minutes} min`;
-      } else if (data.duration !== undefined) {
-        return data.duration;
-      } else {
-        return JSON.stringify(data);
-      }
-    } else if (typeof data === 'string') {
-      // Try to parse if it's a JSON string
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.status === 'success') {
-          if (parsed.avg_seconds !== null && parsed.avg_seconds !== undefined) {
-            const totalMinutes = Math.round(parsed.avg_seconds / 60);
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            return `${hours} hr ${minutes} min`;
-          } else if (parsed.avg_seconds === null) {
-            return "No data";
-          }
-        } else if (parsed.avg_duration_hours !== undefined) {
-          const hours = Math.floor(parsed.avg_duration_hours);
-          const minutes = Math.round((parsed.avg_duration_hours - hours) * 60);
-          return `${hours} hr ${minutes} min`;
-        } else if (parsed.avg_s !== undefined) {
-          const totalMinutes = Math.round(parsed.avg_s / 60);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          return `${hours} hr ${minutes} min`;
-        }
-        return data;
-      } catch {
-        return data;
-      }
-    } else if (typeof data === 'number') {
-      // If API returns duration in hours as a decimal
-      const hours = Math.floor(data);
-      const minutes = Math.round((data - hours) * 60);
-      return `${hours} hr ${minutes} min`;
+
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+    if (parsed && parsed.status === 'success') {
+      return {
+        today: formatSeconds(parsed.today?.avg_seconds),
+        lastWeek: formatSeconds(parsed.last_week_same_day?.avg_seconds),
+      };
     }
-    
-    // If we can't parse it, return the raw data as string
-    return String(data);
+    return offline;
   } catch (error) {
     console.error('Error fetching average duration:', error);
-    return DEFAULT_VALUES.AVERAGE_DURATION;
+    return offline;
   }
 };
 
@@ -191,6 +134,27 @@ export const getAverageDuration = async () => {
  * Fetch peak hours data
  * @returns {Promise<string>} - Peak hours (e.g., "9:32 AM - 11:14 AM")
  */
+/**
+ * Fetch raw hourly counts for charting
+ * @returns {Promise<Array>} - Array of { hour, count } for all 24 hours
+ */
+export const getPeakHoursRaw = async () => {
+  const currentDate = getCurrentDate();
+  const endpoint = `${ENDPOINTS.PEAK_HOURS}?peakTimeTargetDate=${currentDate}`;
+  const data = await withRetry(() => apiRequest(endpoint));
+  const raw = (typeof data === 'object' ? data : JSON.parse(data));
+  if (raw.status === 'success' && Array.isArray(raw.hourly_counts)) {
+    // Ensure all 24 hours are present, fill missing with 0
+    const map = {};
+    raw.hourly_counts.forEach(item => { map[item.hour] = item.count; });
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: `${String(h).padStart(2, '0')}:00`,
+      count: map[h] || 0,
+    }));
+  }
+  return [];
+};
+
 export const getPeakHours = async () => {
   try {
     const currentDate = getCurrentDate();

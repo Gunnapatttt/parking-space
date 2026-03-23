@@ -11,14 +11,16 @@ const REFRESH_INTERVALS = {
 // Default values for offline detection (clearly fake values that never match real data)
 const DEFAULT_VALUES = {
   'Car Parking': 'OFFLINE',
-  'Average Parking Duration': 'OFFLINE',
+  'Avg Duration (Today)': 'OFFLINE',
+  'Avg Duration (Last Week)': 'OFFLINE',
   'Peak Hours': 'OFFLINE'
 };
 
 const DashboardSummary = () => {
   const [summaryData, setSummaryData] = useState([
     { label: 'Car Parking', value: 'Loading...', isDefault: false },
-    { label: 'Average Parking Duration', value: 'Loading...', isDefault: false },
+    { label: 'Avg Duration (Today)', value: 'Loading...', isDefault: false },
+    { label: 'Avg Duration (Last Week)', value: 'Loading...', isDefault: false },
     { label: 'Peak Hours', value: 'Loading...', isDefault: false },
   ]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,8 +63,18 @@ const DashboardSummary = () => {
   const fetchSpaceAvailability = useCallback(() => 
     fetchMetric('Car Parking', getSpaceAvailability), [fetchMetric]);
   
-  const fetchAverageDuration = useCallback(() => 
-    fetchMetric('Average Parking Duration', getAverageDuration), [fetchMetric]);
+  const fetchAverageDuration = useCallback(async () => {
+    try {
+      const data = await getAverageDuration();
+      const todayIsDefault = data.today === DEFAULT_VALUES['Avg Duration (Today)'];
+      const lastWeekIsDefault = data.lastWeek === DEFAULT_VALUES['Avg Duration (Last Week)'];
+      updateMetricData('Avg Duration (Today)', data.today, todayIsDefault);
+      updateMetricData('Avg Duration (Last Week)', data.lastWeek, lastWeekIsDefault);
+    } catch (err) {
+      updateMetricData('Avg Duration (Today)', 'Offline', true);
+      updateMetricData('Avg Duration (Last Week)', 'Offline', true);
+    }
+  }, [updateMetricData]);
   
   const fetchPeakHours = useCallback(() => 
     fetchMetric('Peak Hours', getPeakHours), [fetchMetric]);
@@ -118,14 +130,13 @@ const DashboardSummary = () => {
   const getCardStyles = (item) => ({
     background: '#fff',
     borderRadius: 12,
-    padding: '10px 32px',
-    minWidth: 180,
+    padding: '20px 24px',
+    flex: '1 0 180px',
     boxShadow: '0 2px 8px #e5e7eb',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '120px',
     opacity: isLoading ? 0.7 : 1,
     transition: 'opacity 0.3s ease',
     border: item.isDefault ? '2px solid #f44336' : 'none'
@@ -138,7 +149,7 @@ const DashboardSummary = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 24, marginBottom: 24 }}>
+    <div style={{ display: 'flex', gap: 24, marginBottom: 24, overflowX: 'auto', paddingBottom: 4 }}>
       {/* Connection Status Indicator */}
       <div style={{
         position: 'absolute',

@@ -4,6 +4,7 @@ import DashboardLayout from './components/DashboardLayout';
 import Header from './components/Header';
 import LiveFeed from './components/LiveFeed';
 import DashboardSummary from './components/DashboardSummary';
+import TrafficChart from './components/TrafficChart';
 import UpdateLog from './components/UpdateLog';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
       right={
         <div>
           <DashboardSummary />
+          <TrafficChart />
           <UpdateLog />
         </div>
       }
